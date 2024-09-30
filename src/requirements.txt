@@ -1,0 +1,5 @@
+aiobotocore==2.15.1
+kerchunk==0.2.6
+s3fs==2024.9.0
+ujson==5.10.0
+zarr==2.18.3
