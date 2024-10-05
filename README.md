@@ -12,8 +12,8 @@ To generate a zarr store for a single netcdf4 file, run `generate_kerchunk_file_
 ``` python
 from .kerchunk_timeseries.kerchunk_netcdf4 import generate_kerchunk_file_store
 
-netcdf_uri = 's3://bucket-name/path/to/netcdf/file_00.nc'
-json_store_bytes = generate_kerchunk_file_store(netcdf_uri)
+netcdf_uri = 's3://bucket-name/path/to/netcdf/file_00_version_v0.3.nc'
+json_store_bytes = generate_kerchunk_file_store(netcdf_uri, netcdf_product_version='v0.3')
 
 fsspec.open('s3://destination_file/for/zarr/store_00.json', 'wb') as f:
     f.write(json_store_bytes)
@@ -37,7 +37,7 @@ fsspec.open('s3://destination_file/for/zarr/stack_00.json', 'wb') as f:
 If credentials are needed to access the s3 bucket, an aiobotocore session can be passed to `generate_kerchunk_file_store()` and `generate_kerchunk_file_store_stack()`. Kerchunk will use this session to read the s3 file(s).
 
 ``` python
-generate_kerchunk_file_store(netcdf_uri, session=authenticated_aio_session)
+generate_kerchunk_file_store(netcdf_uri, 'vX.X', session=authenticated_aio_session)
  generate_kerchunk_file_store_stack(zarr_timestep_uris, session=authenticated_aio_session)
 ```
 --------
