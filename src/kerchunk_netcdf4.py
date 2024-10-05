@@ -1,16 +1,17 @@
 import copy
 from typing import Any, Optional
+import numpy as np
 import zarr
 import ujson
 from kerchunk.hdf import SingleHdf5ToZarr
-from kerchunk.combine import MultiZarrToZarr
+from kerchunk.combine import MultiZarrToZarr, drop
 from aiobotocore.session import AioSession
 from s3fs import S3FileSystem
-
+import h5py
 
 def generate_kerchunk_file_store(
     netcdf_uri: str,
-    file_size: float,
+    netcdf_product_version: str,
     fsspec_options: dict = {
         "mode": "rb",
         "anon": False,
@@ -27,7 +28,9 @@ def generate_kerchunk_file_store(
     Parameters
     ----------
     netcdf_uri: str (Required)
-        The S3 uri build the zarr store from
+        The S3 uri to build the zarr store from
+    netcdf_product_version: str (Required)
+        The product version of the source netcdf file
     fsspec_options: dict (Optional)
         options to pass to fsspec for opening the provided files
     session: AioSession (Optional)
@@ -42,6 +45,9 @@ def generate_kerchunk_file_store(
     s3 = S3FileSystem(session=session)
 
     with s3.open(netcdf_uri, **fsspec_options) as netcdf_infile:
+        dataset = h5py.File(netcdf_infile, 'r')
+        reference_datetime = dataset['identification']['reference_datetime'][()]
+        secondary_datetime = dataset['identification']['secondary_datetime'][()]
         h5_chunks = SingleHdf5ToZarr(
             h5f=netcdf_infile, url=netcdf_uri, inline_threshold=300
         )
@@ -50,9 +56,24 @@ def generate_kerchunk_file_store(
 
         # store uri and size of file at time of writing zarr store
         zarr_store = zarr.hierarchy.open_group(h5_chunks.store)
+        source_file_name = netcdf_uri.split('/')[-1]
 
         _add_data_variable(zarr_store, "netcdf_uri", data=netcdf_uri, dtype=str)
         _add_data_variable(zarr_store, "bytes", data=file_size, dtype=float)
+        _add_data_variable(zarr_store, 'source_file_name', data=source_file_name, dtype=str)
+        _add_data_variable(zarr_store, 'product_version', data=netcdf_product_version, dtype=str)
+        _add_data_variable(
+            zarr_store,
+            'reference_datetime',
+            data=reference_datetime,
+            dtype=np.dtype('datetime64[ns]'),
+        )
+        _add_data_variable(
+            zarr_store,
+            'secondary_datetime',
+            data=secondary_datetime,
+            dtype=np.dtype('datetime64[ns]'),
+        )
 
         return ujson.dumps(h5_chunks.translate()).encode()
 
@@ -69,8 +90,9 @@ def generate_kerchunk_file_store_stack(
     session: Optional[AioSession] = None,
 ) -> bytes:
     """
-    Creates a consolidated zarr store from a list of zarr json stores
-    concatenated along the "time" axis and returns the new zarr json store as bytes
+    Creates a consolidated zarr store from a list of zarr json stores.
+    concatenated along the "secondary_datetime" axis and returns the new zarr json store as bytes
+    (note: drops the "time" axis as workaround for odd stacking behavior. Data is equivalent to "secondary_datetime")
 
     Parameters
     ----------
@@ -90,14 +112,14 @@ def generate_kerchunk_file_store_stack(
     storage_options = copy.deepcopy(fsspec_options)
     storage_options["session"] = session
 
+    drop_time = drop('time')
     zarr_chunks = MultiZarrToZarr(
         zarr_uris,
-        remote_options=storage_options,
-        concat_dims=["time"],
-        identical_dims=["y", "x"],
-        coo_map={
-            "time": "cf:time",  # THIS KEEPS TIME FROM BEING DROPPED:
-        },  # https://github.com/fsspec/kerchunk/issues/343#issuecomment-1666289741
+        target_options=fsspec_options,
+        remote_protocol='s3',
+        concat_dims=['source_file_name'],
+        identical_dims=['y', 'x'],
+        preprocess=drop_time,
     )
     multi_zarr_store = zarr_chunks.translate()
 
