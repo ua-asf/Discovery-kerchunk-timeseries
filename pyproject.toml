@@ -21,10 +21,10 @@ classifiers = [
 ]
 dependencies = [
     "aiobotocore==2.15.1",
+    "zarr==2.18.2",
     "kerchunk==0.2.6",
     "s3fs==2024.9.0",
     "ujson==5.10.0",
-    "zarr==2.18.3",
     "h5py==3.12.1",
 ]
 
