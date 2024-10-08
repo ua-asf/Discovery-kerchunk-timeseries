@@ -6,8 +6,10 @@ into a single temporal zarr store.
 
 ## Installation
 
+To install the latest stable version of the asf_kerchunk_timeseries package, run the following command:
+
 ``` bash
-pip install git+https://github.com/ua-asf/Discovery-kerchunk-timeseries
+pip install git+https://github.com/ua-asf/Discovery-kerchunk-timeseries@stable
 ```
 
 ## Usage
