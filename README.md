@@ -42,13 +42,21 @@ fsspec.open('s3://destination_file/for/zarr/stack_00.json', 'wb') as f:
 ```
 
 ### aiobotocore session
-If credentials are needed to access the s3 bucket, an aiobotocore session can be passed to `generate_kerchunk_file_store()` and `generate_kerchunk_file_store_stack()`. Kerchunk will use this session to read the s3 file(s).
+If credentials are needed to access the s3 bucket for the source netcdf4 data or zarr json stores, an aiobotocore session can be passed to `generate_kerchunk_file_store()`, and two separate aiobotocore sessions can be passed to `generate_kerchunk_file_store_stack()` (for cases where the source netcdf4 data and  zarr json stores are not in the same bucket and the environment doesn't have immediate permission to access both). Kerchunk will use these session(s) to read the s3 file(s).
 
 ``` python
 # for single timestep
-generate_kerchunk_file_store(netcdf_uri, 'vX.X', session=authenticated_aio_session)
+data = generate_kerchunk_file_store(netcdf_uri, 'vX.X', session=authenticated_aio_session)
 
 # for stack
-generate_kerchunk_file_store_stack(zarr_timestep_uris, session=authenticated_aio_session)
+# if the environment doesn't have default permissions to read from the provided zarr uris,
+# OR the netcdf4 data those zarr json stores are referencing,
+# separate sessions can be provided for either bucket.
+# (kerchunk will fallback to the `Default` profile in aws credentials file, then the current system if that doesn't exist)
+stack_data = generate_kerchunk_file_store_stack(
+    zarr_json_uris,
+    netcdf4_bucket_session=session_with_netcdf4_bucket_permissions 
+    zarr_bucket_session=session_with_zarr_store_bucket_permissions
+)
 ```
 --------
