@@ -1,3 +1,4 @@
+import ujson
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -88,9 +89,11 @@ def test_kerchunk_file_workflow(_mock_s3fs_ls, _mock_s3fs_open):
         zarr_store = f"{file}.zarr"
         with open(zarr_store, "wb") as f:
             f.write(
+                ujson.dumps(
                 generate_kerchunk_file_store(
                     file, netcdf_product_version="v0.0", fsspec_options=spec
                 )
+                ).encode()
             )
 
         test_data = xr.open_dataset(zarr_store, engine="kerchunk")

@@ -23,7 +23,7 @@ from asf_kerchunk_timeseries import generate_kerchunk_file_store
 netcdf_uri = 's3://bucket-name/path/to/netcdf/file_00_version_v0.3.nc'
 json_store_bytes = generate_kerchunk_file_store(netcdf_uri, netcdf_product_version='v0.3')
 
-fsspec.open('s3://destination_file/for/zarr/store_00.json', 'wb') as f:
+fsspec.open('s3://destination_file/for/zarr/store_00.zarr', 'wb') as f:
     f.write(json_store_bytes)
 ```
 ### Combine multiple netcdf4 Zarr Stores
@@ -34,11 +34,15 @@ with a list of the s3 uris for the temporal stack
 ``` python
 from asf_kerchunk_timeseries import generate_kerchunk_file_store_stack
 
-timestep_zarr_stores = ['s3://bucket-name/path/to/netcdf/file_00.json', ..., 's3://bucket-name/path/to/netcdf/file_01.json']
-json_timeseries_store_bytes = generate_kerchunk_file_store_stack(timestep_zarr_stores)
+timestep_zarr_stores = ['s3://bucket-name/path/to/netcdf/file_00.zarr', ..., 's3://bucket-name/path/to/netcdf/file_01.zarr']
+json_timeseries_store_dict = generate_kerchunk_file_store_stack(timestep_zarr_stores)
 
-fsspec.open('s3://destination_file/for/zarr/stack_00.json', 'wb') as f:
-    f.write(json_timeseries_store_bytes)
+# Run any post processing on the dict
+do_stuff(json_timeseries_store_dict)
+
+# Write the dict as byte encoding string to a file
+fsspec.open('s3://destination_file/for/zarr/stack_00.zarr', 'wb') as f:
+    f.write(json.dumps(json_timeseries_store_dict).encode())
 ```
 
 ### aiobotocore session
