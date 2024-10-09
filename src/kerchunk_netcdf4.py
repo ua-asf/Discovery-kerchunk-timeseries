@@ -21,7 +21,7 @@ def generate_kerchunk_file_store(
         "default_block_size": 1024 * 1024,
     },
     session: Optional[AioSession] = None,
-) -> bytes:
+) -> dict[str, Any]:
     """
     Creates a zarr store for the provided netcdf/h5 file using the kerchunk library
     and returns it as bytes
@@ -43,7 +43,8 @@ def generate_kerchunk_file_store(
 
     Returns
     -------
-    The encoded json zarr store for the provided `netcdf_uri` as bytes
+    The translated json zarr store for the provided `netcdf_uri` as bytes
+    (see kerchunk docs for spec https://fsspec.github.io/kerchunk/spec.html#version-1)
     """
     s3 = S3FileSystem(session=session)
 
@@ -82,7 +83,7 @@ def generate_kerchunk_file_store(
             dtype=np.dtype("datetime64[ns]"),
         )
 
-        return ujson.dumps(h5_chunks.translate()).encode()
+        return h5_chunks.translate()
 
 
 def generate_kerchunk_file_store_stack(
