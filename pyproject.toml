@@ -8,8 +8,8 @@ name = "asf_kerchunk_timeseries"
 authors = [
     {name = "Alaska Satellite Facility Discovery Team", email = "uaf-asf-discovery@alaska.edu"},
 ]
-description = """This package is a wrapper around [Kerchunk](https://github.com/fsspec/kerchunk) for generating 
-zarr stores for individual netcdf4/hdf5 files as well as consolidating spatially aligned zarr stores 
+description = """This package is a wrapper around [Kerchunk](https://github.com/fsspec/kerchunk) for generating
+zarr stores for individual netcdf4/hdf5 files as well as consolidating spatially aligned zarr stores
 into a single temporal zarr store, indexed by the source_file_name."""
 
 
@@ -20,17 +20,19 @@ classifiers = [
     "Programming Language :: Python :: 3",
 ]
 dependencies = [
-    "aiobotocore==2.15.1",
-    "zarr==2.18.2",
-    "kerchunk==0.2.6",
-    "s3fs==2024.9.0",
-    "ujson==5.10.0",
-    "h5py==3.12.1",
+    "aiobotocore",
+    "zarr~=2.18",
+    "kerchunk~=0.2.6",
+    "s3fs",
+    "ujson~=5.10",
+    "h5py~=3.6",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest==8.3.3",
+    "pytest~=8.3",
+    "xarray",
+    "netCDF4",
 ]
 
 [tool.setuptools]
