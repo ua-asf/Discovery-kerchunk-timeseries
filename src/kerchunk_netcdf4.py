@@ -2,7 +2,6 @@ import copy
 from typing import Any, Optional
 import numpy as np
 import zarr
-import ujson
 from kerchunk.hdf import SingleHdf5ToZarr
 from kerchunk.combine import MultiZarrToZarr, drop
 from aiobotocore.session import AioSession
@@ -97,7 +96,7 @@ def generate_kerchunk_file_store_stack(
     },
     netcdf4_bucket_session: Optional[AioSession] = None,
     zarr_bucket_session: Optional[AioSession] = None,
-) -> bytes:
+) -> dict[str, Any]:
     """
     Creates a consolidated zarr store from a list of zarr json stores.
     concatenated along the "secondary_datetime" axis and returns the new zarr json store as bytes
@@ -126,7 +125,7 @@ def generate_kerchunk_file_store_stack(
 
     Returns
     -------
-    The encoded combined json zarr store for the provided `zarr_uris` as bytes
+    The consolidated json zarr store for the provided `zarr_uris` as a dict
     """
     target_options = copy.deepcopy(fsspec_options)
     target_options["session"] = zarr_bucket_session
@@ -144,9 +143,8 @@ def generate_kerchunk_file_store_stack(
         identical_dims=["y", "x"],
         preprocess=drop_time,
     )
-    multi_zarr_store = zarr_chunks.translate()
 
-    return ujson.dumps(multi_zarr_store).encode()
+    return zarr_chunks.translate()
 
 
 def _add_data_variable(

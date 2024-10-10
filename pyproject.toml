@@ -24,7 +24,6 @@ dependencies = [
     "zarr~=2.18",
     "kerchunk~=0.2.6",
     "s3fs",
-    "ujson~=5.10",
     "h5py~=3.6",
 ]
 

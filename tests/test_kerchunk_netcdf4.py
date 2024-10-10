@@ -1,4 +1,4 @@
-import ujson
+import json
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -89,7 +89,7 @@ def test_kerchunk_file_workflow(_mock_s3fs_ls, _mock_s3fs_open):
         zarr_store = f"{file}.zarr"
         with open(zarr_store, "wb") as f:
             f.write(
-                ujson.dumps(
+                json.dumps(
                 generate_kerchunk_file_store(
                     file, netcdf_product_version="v0.0", fsspec_options=spec
                 )
@@ -113,7 +113,7 @@ def test_kerchunk_file_workflow(_mock_s3fs_ls, _mock_s3fs_open):
     uris = [f"{file}.zarr" for file in files]
     zarr_stack_store = "test_frame.zarr"
     with open(zarr_stack_store, "wb") as f:
-        f.write(generate_kerchunk_file_store_stack(uris, spec))
+        f.write(json.dumps(generate_kerchunk_file_store_stack(uris, spec)).encode())
 
     stack_data = xr.open_dataset(zarr_stack_store, engine="kerchunk")
     assert "source_file_name" in stack_data.coords
