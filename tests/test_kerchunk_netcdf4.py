@@ -12,14 +12,17 @@ from asf_kerchunk_timeseries import (
     generate_kerchunk_file_store_stack,
 )
 
+from asf_kerchunk_timeseries.kerchunk_netcdf4 import _add_data_variable
+
 
 def _generate_data(
-    file_name: str,
     x_dim: int = 4,
     y_dim: int = 4,
     reference_datetime: np.datetime64 = np.datetime64("2022-11-07T00:00:00.000000000"),
     secondary_datetime: np.datetime64 = np.datetime64("2022-12-13T00:00:00.000000000"),
-):
+) -> tuple[xr.Dataset, xr.Dataset]:
+    """Generates xarray datasets with x, y, time (secondary_datetime) dims,
+    and two datavariable groups (unwrapped_phase & displacement)"""
     arr = np.random.randn(1, x_dim, y_dim)
 
     dims = ["time", "x", "y"]
@@ -43,8 +46,12 @@ def _generate_data(
         coords={"time": secondary_datetime},
     )
 
-    dataset.to_netcdf(file_name, group="/", format="NETCDF4")
-    identity.to_netcdf(file_name, group="/identification", format="NETCDF4", mode="a")
+    return dataset, identity
+
+
+def _write_to_file(file: str, dataset: xr.Dataset, identity: xr.Dataset):
+    dataset.to_netcdf(file, group="/", format="NETCDF4")
+    identity.to_netcdf(file, group="/identification", format="NETCDF4", mode="a")
 
 
 def _open_with_size(file, mode: str, **kwargs):
@@ -78,21 +85,22 @@ def test_kerchunk_file_workflow(_mock_s3fs_ls, _mock_s3fs_open):
             "2022-12-13T00:00:00.000000000"
         ) + np.timedelta64(offset, "D")
 
-        _generate_data(
-            file,
+        dataset, identity = _generate_data(
             255,
             255,
             reference_datetime=reference_datetime,
             secondary_datetime=secondary_datetime,
         )
 
+        _write_to_file(file, dataset, identity)
+
         zarr_store = f"{file}.zarr"
         with open(zarr_store, "wb") as f:
             f.write(
                 json.dumps(
-                generate_kerchunk_file_store(
-                    file, netcdf_product_version="v0.0", fsspec_options=spec
-                )
+                    generate_kerchunk_file_store(
+                        file, netcdf_product_version="v0.0", fsspec_options=spec
+                    )
                 ).encode()
             )
 
@@ -142,7 +150,7 @@ def test_kerchunk_file_workflow(_mock_s3fs_ls, _mock_s3fs_open):
                 .drop_vars("time")
                 .equals(timestep_in_stack[key].drop_vars("source_file_name"))
             )
-        
+
         # additional variables added during processing lack source file's 'time' coordinate
         for key in [
             "bytes",
@@ -155,3 +163,15 @@ def test_kerchunk_file_workflow(_mock_s3fs_ls, _mock_s3fs_open):
             assert timestep_dataset[key].equals(
                 timestep_in_stack[key].drop_vars("source_file_name")
             )
+
+
+def test_add_data_variable():
+    #  = zarr.group(zarr_version=1)
+    data, _ = _generate_data(255, 255)
+    zarr_data = data.to_zarr(zarr_version=1)
+    test_zarr = zarr_data.zarr_group
+    random_data = np.random.randn(10, 10)
+    _add_data_variable(test_zarr, "test_zarr_group", random_data, float)
+
+    for stored, original in zip(test_zarr["test_zarr_group"], random_data):
+        assert original.tolist() == stored.tolist()
