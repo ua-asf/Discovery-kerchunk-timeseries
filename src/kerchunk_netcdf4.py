@@ -3,7 +3,7 @@ from typing import Any, Optional
 import numpy as np
 import zarr
 from kerchunk.hdf import SingleHdf5ToZarr
-from kerchunk.combine import MultiZarrToZarr, auto_dask, JustLoad, drop
+from kerchunk.combine import MultiZarrToZarr, drop  # auto_dask, JustLoad
 from aiobotocore.session import AioSession
 from s3fs import S3FileSystem
 import h5py
@@ -151,44 +151,44 @@ def generate_kerchunk_file_store_stack(
     return zarr_chunks.translate()
 
 
-def generate_dask_kerchunk_file_store_stack(
-    zarr_gz_uris: list[str],
-    fsspec_options: dict = {
-        "mode": "rb",
-        "compression": "gzip",
-        "anon": False,
-        "default_fill_cache": False,
-        "default_cache_type": "first",
-        "default_block_size": 1024 * 1024,
-    },
-    netcdf4_bucket_session: Optional[AioSession] = None,
-    zarr_bucket_session: Optional[AioSession] = None,
-):
-    target_options = copy.deepcopy(fsspec_options)
-    target_options["session"] = zarr_bucket_session
+# def generate_dask_kerchunk_file_store_stack(
+#     zarr_gz_uris: list[str],
+#     fsspec_options: dict = {
+#         "mode": "rb",
+#         "compression": "gzip",
+#         "anon": False,
+#         "default_fill_cache": False,
+#         "default_cache_type": "first",
+#         "default_block_size": 1024 * 1024,
+#     },
+#     netcdf4_bucket_session: Optional[AioSession] = None,
+#     zarr_bucket_session: Optional[AioSession] = None,
+# ):
+#     target_options = copy.deepcopy(fsspec_options)
+#     target_options["session"] = zarr_bucket_session
 
-    remote_options = copy.deepcopy(fsspec_options)
-    remote_options["session"] = netcdf4_bucket_session
-    drop_time = drop("time")
+#     remote_options = copy.deepcopy(fsspec_options)
+#     remote_options["session"] = netcdf4_bucket_session
+#     drop_time = drop("time")
 
-    mzz = auto_dask(
-        urls=zarr_gz_uris,
-        single_kwargs=dict(
-            storage_options=target_options,
-        ),
-        # this way we don't have to do any gzip loading ourselves and we get to use auto_dask for large stacks
-        single_driver=JustLoad,
-        mzz_kwargs=dict(
-            remote_options=remote_options,
-            remote_protocol="s3",
-            concat_dims=["source_file_name"],
-            identical_dims=["y", "x"],
-            preprocess=drop_time,
-        ),
-        n_batches=16,
-    )
+#     mzz = auto_dask(
+#         urls=zarr_gz_uris,
+#         single_kwargs=dict(
+#             storage_options=target_options,
+#         ),
+#         # this way we don't have to do any gzip loading ourselves and we get to use auto_dask for large stacks
+#         single_driver=JustLoad,
+#         mzz_kwargs=dict(
+#             remote_options=remote_options,
+#             remote_protocol="s3",
+#             concat_dims=["source_file_name"],
+#             identical_dims=["y", "x"],
+#             preprocess=drop_time,
+#         ),
+#         n_batches=16,
+#     )
 
-    return mzz
+#     return mzz
 
 
 def _add_data_variable(
