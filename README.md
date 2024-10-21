@@ -54,7 +54,8 @@ If credentials are needed to access the s3 bucket for the source netcdf4 data or
 
 ``` python
 # for single timestep
-data = generate_kerchunk_file_store(netcdf_uri, 
+data = generate_kerchunk_file_store(
+    netcdf_uri, 
     final_netcdf_uri=final_netcdf_uri, 
     netcdf_product_version='vX.X', 
     session=authenticated_aio_session
