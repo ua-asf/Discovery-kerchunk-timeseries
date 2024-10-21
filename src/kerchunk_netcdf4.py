@@ -3,7 +3,7 @@ from typing import Any, Optional
 import numpy as np
 import zarr
 from kerchunk.hdf import SingleHdf5ToZarr
-from kerchunk.combine import MultiZarrToZarr, drop
+from kerchunk.combine import MultiZarrToZarr, drop  # auto_dask, JustLoad
 from aiobotocore.session import AioSession
 from s3fs import S3FileSystem
 import h5py
@@ -11,6 +11,7 @@ import h5py
 
 def generate_kerchunk_file_store(
     netcdf_uri: str,
+    final_netcdf_uri: str,
     netcdf_product_version: str,
     fsspec_options: dict = {
         "mode": "rb",
@@ -23,16 +24,19 @@ def generate_kerchunk_file_store(
 ) -> dict[str, Any]:
     """
     Creates a zarr store for the provided netcdf/h5 file using the kerchunk library
-    and returns it as bytes
+    and returns it as a dictionary.
 
     Parameters
     ----------
     netcdf_uri: str (Required)
         The S3 uri to build the zarr store from
+    final_netcdf_uri: str (Required)
+        Will be written to the `netcdf_uri` and `source_file_name` data variables in the zarr store.
+        This is where users should expect to find the final source netcdf data after any staging processes.
     netcdf_product_version: str (Required)
-        The product version of the source netcdf file
+        The product version of the source netcdf file.
     fsspec_options: dict (Optional)
-        options to pass to fsspec for opening the provided files
+        options to pass to fsspec for opening the provided files.
     session: AioSession (Optional)
         an AioBotocore session. Used to access the netcdf4 data bucket.
 
@@ -59,9 +63,9 @@ def generate_kerchunk_file_store(
 
         # store uri and size of file at time of writing zarr store
         zarr_store = zarr.hierarchy.open_group(h5_chunks.store)
-        source_file_name = netcdf_uri.split("/")[-1]
+        source_file_name = final_netcdf_uri.split("/")[-1]
 
-        _add_data_variable(zarr_store, "netcdf_uri", data=netcdf_uri, dtype=str)
+        _add_data_variable(zarr_store, "netcdf_uri", data=final_netcdf_uri, dtype=str)
         _add_data_variable(zarr_store, "bytes", data=file_size, dtype=float)
         _add_data_variable(
             zarr_store, "source_file_name", data=source_file_name, dtype=str
@@ -145,6 +149,46 @@ def generate_kerchunk_file_store_stack(
     )
 
     return zarr_chunks.translate()
+
+
+# def generate_dask_kerchunk_file_store_stack(
+#     zarr_gz_uris: list[str],
+#     fsspec_options: dict = {
+#         "mode": "rb",
+#         "compression": "gzip",
+#         "anon": False,
+#         "default_fill_cache": False,
+#         "default_cache_type": "first",
+#         "default_block_size": 1024 * 1024,
+#     },
+#     netcdf4_bucket_session: Optional[AioSession] = None,
+#     zarr_bucket_session: Optional[AioSession] = None,
+# ):
+#     target_options = copy.deepcopy(fsspec_options)
+#     target_options["session"] = zarr_bucket_session
+
+#     remote_options = copy.deepcopy(fsspec_options)
+#     remote_options["session"] = netcdf4_bucket_session
+#     drop_time = drop("time")
+
+#     mzz = auto_dask(
+#         urls=zarr_gz_uris,
+#         single_kwargs=dict(
+#             storage_options=target_options,
+#         ),
+#         # this way we don't have to do any gzip loading ourselves and we get to use auto_dask for large stacks
+#         single_driver=JustLoad,
+#         mzz_kwargs=dict(
+#             remote_options=remote_options,
+#             remote_protocol="s3",
+#             concat_dims=["source_file_name"],
+#             identical_dims=["y", "x"],
+#             preprocess=drop_time,
+#         ),
+#         n_batches=16,
+#     )
+
+#     return mzz
 
 
 def _add_data_variable(

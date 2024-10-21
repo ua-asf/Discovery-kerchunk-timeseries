@@ -99,7 +99,10 @@ def test_kerchunk_file_workflow(_mock_s3fs_ls, _mock_s3fs_open):
             f.write(
                 json.dumps(
                     generate_kerchunk_file_store(
-                        file, netcdf_product_version="v0.0", fsspec_options=spec
+                        file,
+                        netcdf_product_version="v0.0",
+                        final_netcdf_uri=file,
+                        fsspec_options=spec,
                     )
                 ).encode()
             )

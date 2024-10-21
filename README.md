@@ -21,8 +21,9 @@ To generate a zarr store for a single netcdf4 file, run `generate_kerchunk_file_
 from asf_kerchunk_timeseries import generate_kerchunk_file_store
 import json
 
-netcdf_uri = 's3://bucket-name/path/to/netcdf/file_00_v0.3.nc'
-json_store_dict = generate_kerchunk_file_store(netcdf_uri, netcdf_product_version='v0.3')
+netcdf_uri = 's3://bucket-name/staging/path/to/netcdf/file_00_v0.3.nc'
+final_netcdf_uri = 's3://bucket-name/final/path/to/netcdf/OPERA_DISP_file_00_v0.3.nc'
+json_store_dict = generate_kerchunk_file_store(netcdf_uri, final_netcdf_uri=final_netcdf_uri, netcdf_product_version='v0.3')
 
 # Run any post processing on the dict
 # find-and-replace intermediate file uris, etc
@@ -53,7 +54,12 @@ If credentials are needed to access the s3 bucket for the source netcdf4 data or
 
 ``` python
 # for single timestep
-data = generate_kerchunk_file_store(netcdf_uri, 'vX.X', session=authenticated_aio_session)
+data = generate_kerchunk_file_store(
+    netcdf_uri, 
+    final_netcdf_uri=final_netcdf_uri, 
+    netcdf_product_version='vX.X', 
+    session=authenticated_aio_session
+    )
 
 # for stack
 # if the environment doesn't have default permissions to read from the provided zarr uris,
