@@ -64,12 +64,31 @@ data = generate_kerchunk_file_store(
 # for stack
 # if the environment doesn't have default permissions to read from the provided zarr uris,
 # OR the netcdf4 data those zarr json stores are referencing,
-# separate sessions can be provided for either bucket.
+# separate sessions can be provided for either bucket in a dict via target_opts and remote_opts.
 # (kerchunk will fallback to the `Default` profile in aws credentials file, then the current system if that doesn't exist)
 stack_data = generate_kerchunk_file_store_stack(
     zarr_json_uris,
-    netcdf4_bucket_session=session_with_netcdf4_bucket_permissions 
-    zarr_bucket_session=session_with_zarr_store_bucket_permissions
+    target_opts={'session': session_with_zarr_store_bucket_permissions}
+    remote_opts={'session': session_with_netcdf4_bucket_permissions},
 )
+```
+
+### Advanced
+In the consolidation step, if the individual zarr references are in a compressed format (say `gzip`)
+`MultiZarrToZarr` may have trouble reading these files because the class expects uncompressed json.
+You may need to decompress the gzip files beforehand and then pass the loaded dictionaries directly
+to `generate_kerchunk_file_store_stack()` to pass along to `MultiZarrToZarr`.
+
+``` python
+# Load uncompressed zarr stores into list of dicts
+ mzz_steps = []
+ for file in uris:
+    with fsspec.open(file, compression='gzip', **fsspec_opts) as f: # fsspec
+        mzz_steps.append(json.loads(f.read().decode()))
+
+# pass to wrapper, which will pass references directly to multizarrtozarr
+with fsspec.open('test_stack.gz', 'wb', compression='gzip', **output_fsspec_opts) as f:
+    consolidated = generate_kerchunk_file_store_stack(mzz_steps)
+    f.write(json.dumps(consolidated.translate()).encode())
 ```
 --------
