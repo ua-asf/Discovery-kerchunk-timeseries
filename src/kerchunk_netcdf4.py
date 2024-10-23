@@ -117,7 +117,6 @@ def generate_kerchunk_file_store_stack(
     The consolidated json zarr store for the provided `zarr_uris` as a dict
     """
     defaults = {
-        "mode": "rb",
         "anon": False,
         "default_fill_cache": False,
         "default_cache_type": "first",
