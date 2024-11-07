@@ -1,9 +1,8 @@
-import copy
 from typing import Any, Optional, Union
 import numpy as np
 import zarr
 from kerchunk.hdf import SingleHdf5ToZarr
-from kerchunk.combine import MultiZarrToZarr, drop  # auto_dask, JustLoad
+from kerchunk.combine import MultiZarrToZarr  # auto_dask, JustLoad
 from aiobotocore.session import AioSession
 from s3fs import S3FileSystem
 import h5py
@@ -49,7 +48,7 @@ def generate_kerchunk_file_store(
         "default_fill_cache": False,
         "default_cache_type": "first",
         "default_block_size": 1024 * 1024,
-        **fsspec_options
+        **fsspec_options,
     }
 
     s3 = S3FileSystem(session=session)
@@ -95,7 +94,7 @@ def generate_kerchunk_file_store(
 def generate_kerchunk_file_store_stack(
     zarr_uris: Union[list[str], dict[str, Any]],
     target_opts: dict = {},
-    remote_opts: dict = {}
+    remote_opts: dict = {},
 ) -> dict[str, Any]:
     """
     Creates a consolidated zarr store from a list of zarr json stores.
@@ -111,7 +110,7 @@ def generate_kerchunk_file_store_stack(
         (passed to `MultiZarrToZarr`'s `target_options` keyword)
     remote_opts: dict
         options to pass to fsspec while opening the original netcdf data referenced by the zarr stores.
-        (passed to `MultiZarrToZarr`'s `remote_options` keyword) 
+        (passed to `MultiZarrToZarr`'s `remote_options` keyword)
     Returns
     -------
     The consolidated json zarr store for the provided `zarr_uris` as a dict
@@ -122,17 +121,21 @@ def generate_kerchunk_file_store_stack(
         "default_cache_type": "first",
         "default_block_size": 1024 * 1024,
     }
-    target_options = {
-        **defaults,
-        **target_opts
-    }
+    target_options = {**defaults, **target_opts}
 
-    remote_options = {
-        **defaults,
-        **remote_opts
-    }
+    remote_options = {**defaults, **remote_opts}
 
-    drop_time = drop("time")
+    drop_incompatible_fields = _drop_multi(
+        [
+            "time",
+            "metadata/secondary_orbit/position",  # orbits can differ differ in length (and thus chunksize) by one in source data
+            "metadata/secondary_orbit/time",
+            "metadata/secondary_orbit/velocity",
+            "metadata/reference_orbit/position",
+            "metadata/reference_orbit/time",
+            "metadata/reference_orbit/velocity",
+        ]
+    )
     zarr_chunks = MultiZarrToZarr(
         zarr_uris,
         target_options=target_options,
@@ -140,50 +143,10 @@ def generate_kerchunk_file_store_stack(
         remote_protocol="s3",
         concat_dims=["source_file_name"],
         identical_dims=["y", "x"],
-        preprocess=drop_time,
+        preprocess=drop_incompatible_fields,
     )
 
     return zarr_chunks.translate()
-
-
-# def generate_dask_kerchunk_file_store_stack(
-#     zarr_gz_uris: list[str],
-#     fsspec_options: dict = {
-#         "mode": "rb",
-#         "compression": "gzip",
-#         "anon": False,
-#         "default_fill_cache": False,
-#         "default_cache_type": "first",
-#         "default_block_size": 1024 * 1024,
-#     },
-#     netcdf4_bucket_session: Optional[AioSession] = None,
-#     zarr_bucket_session: Optional[AioSession] = None,
-# ):
-#     target_options = copy.deepcopy(fsspec_options)
-#     target_options["session"] = zarr_bucket_session
-
-#     remote_options = copy.deepcopy(fsspec_options)
-#     remote_options["session"] = netcdf4_bucket_session
-#     drop_time = drop("time")
-
-#     mzz = auto_dask(
-#         urls=zarr_gz_uris,
-#         single_kwargs=dict(
-#             storage_options=target_options,
-#         ),
-#         # this way we don't have to do any gzip loading ourselves and we get to use auto_dask for large stacks
-#         single_driver=JustLoad,
-#         mzz_kwargs=dict(
-#             remote_options=remote_options,
-#             remote_protocol="s3",
-#             concat_dims=["source_file_name"],
-#             identical_dims=["y", "x"],
-#             preprocess=drop_time,
-#         ),
-#         n_batches=16,
-#     )
-
-#     return mzz
 
 
 def _add_data_variable(
@@ -208,3 +171,16 @@ def _add_data_variable(
 
     # xarray won't be able to open the store without '_ARRAY_DIMENSIONS' attribute
     store[key].attrs["_ARRAY_DIMENSIONS"] = []
+
+
+def _drop_multi(fields):
+    """Generates preprocessor removing given list of fields"""
+
+    def preproc(refs):
+        for k in list(refs):
+            for field in fields:
+                if k.startswith(field):
+                    refs.pop(k)
+        return refs
+
+    return preproc
