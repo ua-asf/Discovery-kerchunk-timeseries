@@ -2,7 +2,7 @@ from typing import Any, Optional, Union
 import numpy as np
 import zarr
 from kerchunk.hdf import SingleHdf5ToZarr
-from kerchunk.combine import MultiZarrToZarr
+from kerchunk.combine import MultiZarrToZarr, auto_dask, JustLoad
 from aiobotocore.session import AioSession
 from s3fs import S3FileSystem
 import h5py
@@ -175,6 +175,63 @@ def generate_kerchunk_file_store_stack(
     return zarr_chunks.translate()
 
 
+def dask_generate_kerchunk_file_store_stack(
+    zarr_uris: Union[list[str], dict[str, Any]],
+    target_opts: dict = {},
+    remote_opts: dict = {},
+) -> dict[str, Any]:
+    """
+    Creates a consolidated zarr store from a list of zarr json stores.
+    concatenated along the "secondary_datetime" axis and returns the new zarr json store as bytes
+    (note: drops the "time" axis as workaround for odd stacking behavior. Data is equivalent to "secondary_datetime")
+
+    Parameters
+    ----------
+    zarr_uris: str (Required)
+        The S3 zarr uris (or list of in-memory zarr store dicts) to build the consolidated zarr store from
+    target_opts: dict
+        options to pass to fsspec while opening the provided zarr uris.
+        (passed to `MultiZarrToZarr`'s `target_options` keyword)
+    remote_opts: dict
+        options to pass to fsspec while opening the original netcdf data referenced by the zarr stores.
+        (passed to `MultiZarrToZarr`'s `remote_options` keyword)
+    Returns
+    -------
+    The consolidated json zarr store for the provided `zarr_uris` as a dict
+    """
+    defaults = {
+        "anon": False,
+        "default_fill_cache": False,
+        "default_cache_type": "first",
+        "default_block_size": 1024 * 1024,
+    }
+    target_options = {**defaults, **target_opts}
+
+    remote_options = {**defaults, **remote_opts}
+
+    return auto_dask(
+        urls=zarr_uris,
+        single_driver=JustLoad,
+        single_kwargs=dict(
+            storage_options=target_options,
+        ),
+        mzz_kwargs=dict(
+            # target_options=target_options,
+            remote_options=remote_options,
+            remote_protocol="s3",
+            concat_dims=["source_file_name"],
+            identical_dims=["y", "x"],
+            # preprocess=key_fields_only,
+        ),
+        n_batches=20,
+        remote_protocol="s3",
+        filename=None,
+        output_options=None,
+    )
+
+    # return zarr_chunks #.translate()
+
+
 def filter_unused_references(data: dict) -> None:
     """
     Modifies a zarr store dictionary to remove excess fields
@@ -192,7 +249,6 @@ def filter_unused_references(data: dict) -> None:
         for field in _fields_blacklist:
             if k.startswith(field):
                 refs.pop(k)
-
 
 
 def _add_data_variable(
