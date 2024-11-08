@@ -139,6 +139,7 @@ def generate_kerchunk_file_store_stack(
             "secondary_datetime",
             "short_wavelength_displacement",
             "source_file_name",
+            "spatial_ref",
             "x",
             "y",
         ],
