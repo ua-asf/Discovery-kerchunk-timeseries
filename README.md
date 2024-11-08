@@ -79,12 +79,17 @@ In the consolidation step, if the individual zarr references are in a compressed
 You may need to decompress the gzip files beforehand and then pass the loaded dictionaries directly
 to `generate_kerchunk_file_store_stack()` to pass along to `MultiZarrToZarr`.
 
+`filter_unused_references()` can be used on the loaded dictionaries (or any other preprocessing) 
+to remove unwanted keys from the zarr store refs before they're even passed to kerchunk's `MultiZarrToZarr`.
+
 ``` python
 # Load uncompressed zarr stores into list of dicts
  mzz_steps = []
  for file in uris:
     with fsspec.open(file, compression='gzip', **fsspec_opts) as f: # fsspec
-        mzz_steps.append(json.loads(f.read().decode()))
+        zarr_store = json.loads(f.read().decode())
+        filter_unused_references(zarr_store) # filters out unneeded refs based on pre-defined whitelist+blacklist
+        mzz_steps.append(zarr_store)
 
 # pass to wrapper, which will pass references directly to multizarrtozarr
 with fsspec.open('test_stack.gz', 'wb', compression='gzip', **output_fsspec_opts) as f:

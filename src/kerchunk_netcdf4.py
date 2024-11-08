@@ -7,6 +7,38 @@ from aiobotocore.session import AioSession
 from s3fs import S3FileSystem
 import h5py
 
+# only fields with these prefixes will be kept
+# improves stack time and memory read time
+# for the variables the api will actually use
+_fields_whitelist = [
+    ".zattrs",
+    ".zgroup",
+    "bytes",
+    "corrections",
+    "identification",
+    "metadata",
+    "netcdf_uri",
+    "product_version",
+    "reference_datetime",
+    "secondary_datetime",
+    "short_wavelength_displacement",
+    "source_file_name",
+    "spatial_ref",
+    "x",
+    "y",
+]
+
+# these fields will pass the whitelist above but aren't guaranteed
+# to be the same length (causing an error with kerchunk)
+_fields_blacklist = [
+    "metadata/reference_orbit/position",
+    "metadata/reference_orbit/time",
+    "metadata/reference_orbit/velocity",
+    "metadata/secondary_orbit/position",
+    "metadata/secondary_orbit/time",
+    "metadata/secondary_orbit/velocity",
+]
+
 
 def generate_kerchunk_file_store(
     netcdf_uri: str,
@@ -126,31 +158,8 @@ def generate_kerchunk_file_store_stack(
     remote_options = {**defaults, **remote_opts}
 
     key_fields_only = _drop_all_and_keep(
-        fields_to_keep=[
-            ".zattrs",
-            ".zgroup",
-            "bytes",
-            "corrections",
-            "identification",
-            "metadata",
-            "netcdf_uri",
-            "product_version",
-            "reference_datetime",
-            "secondary_datetime",
-            "short_wavelength_displacement",
-            "source_file_name",
-            "spatial_ref",
-            "x",
-            "y",
-        ],
-        fields_to_drop=[
-            "metadata/reference_orbit/position",
-            "metadata/reference_orbit/time",
-            "metadata/reference_orbit/velocity",
-            "metadata/secondary_orbit/position",
-            "metadata/secondary_orbit/time",
-            "metadata/secondary_orbit/velocity",
-        ],
+        fields_to_keep=_fields_whitelist,
+        fields_to_drop=_fields_blacklist,
     )
 
     zarr_chunks = MultiZarrToZarr(
@@ -164,6 +173,26 @@ def generate_kerchunk_file_store_stack(
     )
 
     return zarr_chunks.translate()
+
+
+def filter_unused_references(data: dict) -> None:
+    """
+    Modifies a zarr store dictionary to remove excess fields
+    that aren't in _fields_whitelist, or are in _fields_blacklist
+    """
+    refs = data["refs"]
+    for k in list(refs):
+        keep = False
+        for field in _fields_whitelist:
+            if k.startswith(field):
+                keep = True
+                continue
+        if not keep:
+            refs.pop(k)
+        for field in _fields_blacklist:
+            if k.startswith(field):
+                refs.pop(k)
+
 
 
 def _add_data_variable(

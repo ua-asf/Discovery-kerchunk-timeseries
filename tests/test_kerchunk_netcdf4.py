@@ -11,6 +11,7 @@ import fsspec
 from asf_kerchunk_timeseries import (
     generate_kerchunk_file_store,
     generate_kerchunk_file_store_stack,
+    filter_unused_references,
 )
 
 from asf_kerchunk_timeseries.kerchunk_netcdf4 import _add_data_variable
@@ -99,6 +100,8 @@ def test_kerchunk_file_workflow(_mock_s3fs_ls, _mock_s3fs_open):
             secondary_datetime=secondary_datetime,
         )
 
+        dataset["remove_me"] = [1, 2, 3]
+
         _write_to_file(file, dataset, identity)
 
         zarr_store = f"{file}.zarr.gz"
@@ -143,7 +146,9 @@ def test_kerchunk_file_workflow(_mock_s3fs_ls, _mock_s3fs_open):
     mzz_steps = []
     for file in uris:
         with gzip.open(file, "rb") as new_f:
-            mzz_steps.append(json.loads(new_f.read().decode()))
+            zarr_store = json.loads(new_f.read().decode())
+            filter_unused_references(zarr_store)
+            mzz_steps.append(zarr_store)
 
     with gzip.open(zarr_stack_store, "wb") as f:
         consolidated = generate_kerchunk_file_store_stack(mzz_steps)
@@ -156,6 +161,7 @@ def test_kerchunk_file_workflow(_mock_s3fs_ls, _mock_s3fs_open):
         target_options={"compression": "gzip"},
     )
     stack_data = xr.open_zarr(fs.get_mapper(""), consolidated=False)
+    assert "remove_me" not in stack_data.variables
     assert "source_file_name" in stack_data.coords
     assert "x" in stack_data.coords
     assert "y" in stack_data.coords
