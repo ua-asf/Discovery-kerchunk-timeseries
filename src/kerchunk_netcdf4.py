@@ -203,7 +203,6 @@ def _drop_all_and_keep(fields_to_keep: list[str], fields_to_drop: list[str]):
                 refs.pop(k)
             for field in fields_to_drop:
                 if k.startswith(field):
-                    print(k)
                     refs.pop(k)
         return refs
 
