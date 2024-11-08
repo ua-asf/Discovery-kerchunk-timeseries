@@ -175,6 +175,7 @@ def generate_kerchunk_file_store_stack(
     return zarr_chunks.translate()
 
 
+
 def dask_generate_kerchunk_file_store_stack(
     zarr_uris: Union[list[str], dict[str, Any]],
     target_opts: dict = {},
@@ -211,26 +212,20 @@ def dask_generate_kerchunk_file_store_stack(
 
     return auto_dask(
         urls=zarr_uris,
+        remote_options=remote_options,
         single_driver=JustLoad,
         single_kwargs=dict(
             storage_options=target_options,
         ),
         mzz_kwargs=dict(
-            # target_options=target_options,
-            remote_options=remote_options,
-            remote_protocol="s3",
             concat_dims=["source_file_name"],
             identical_dims=["y", "x"],
-            # preprocess=key_fields_only,
         ),
-        n_batches=20,
+        n_batches=10,
         remote_protocol="s3",
         filename=None,
         output_options=None,
     )
-
-    # return zarr_chunks #.translate()
-
 
 def filter_unused_references(data: dict) -> None:
     """
