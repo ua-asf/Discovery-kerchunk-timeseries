@@ -2,7 +2,7 @@ from typing import Any, Optional, Union
 import numpy as np
 import zarr
 from kerchunk.hdf import SingleHdf5ToZarr
-from kerchunk.combine import MultiZarrToZarr  # auto_dask, JustLoad
+from kerchunk.combine import MultiZarrToZarr
 from aiobotocore.session import AioSession
 from s3fs import S3FileSystem
 import h5py
@@ -125,17 +125,33 @@ def generate_kerchunk_file_store_stack(
 
     remote_options = {**defaults, **remote_opts}
 
-    drop_incompatible_fields = _drop_multi(
-        [
-            "time",
-            "metadata/secondary_orbit/position",  # orbits can differ differ in length (and thus chunksize) by one in source data
-            "metadata/secondary_orbit/time",
-            "metadata/secondary_orbit/velocity",
+    key_fields_only = _drop_all_and_keep(
+        fields_to_keep=[
+            ".zattrs",
+            ".zgroup",
+            "bytes",
+            "corrections",
+            "identification",
+            "metadata",
+            "netcdf_uri",
+            "product_version",
+            "reference_datetime",
+            "secondary_datetime",
+            "short_wavelength_displacement",
+            "source_file_name",
+            "x",
+            "y",
+        ],
+        fields_to_drop=[
             "metadata/reference_orbit/position",
             "metadata/reference_orbit/time",
             "metadata/reference_orbit/velocity",
-        ]
+            "metadata/secondary_orbit/position",
+            "metadata/secondary_orbit/time",
+            "metadata/secondary_orbit/velocity",
+        ],
     )
+
     zarr_chunks = MultiZarrToZarr(
         zarr_uris,
         target_options=target_options,
@@ -143,7 +159,7 @@ def generate_kerchunk_file_store_stack(
         remote_protocol="s3",
         concat_dims=["source_file_name"],
         identical_dims=["y", "x"],
-        preprocess=drop_incompatible_fields,
+        preprocess=key_fields_only,
     )
 
     return zarr_chunks.translate()
@@ -173,13 +189,21 @@ def _add_data_variable(
     store[key].attrs["_ARRAY_DIMENSIONS"] = []
 
 
-def _drop_multi(fields):
-    """Generates preprocessor removing given list of fields"""
+def _drop_all_and_keep(fields_to_keep: list[str], fields_to_drop: list[str]):
+    """Generates preprocessor for removing ALL but the given list of fields, and drop the specific fields"""
 
     def preproc(refs):
         for k in list(refs):
-            for field in fields:
+            keep = False
+            for field in fields_to_keep:
                 if k.startswith(field):
+                    keep = True
+                    continue
+            if not keep:
+                refs.pop(k)
+            for field in fields_to_drop:
+                if k.startswith(field):
+                    print(k)
                     refs.pop(k)
         return refs
 
