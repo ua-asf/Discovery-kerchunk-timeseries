@@ -23,7 +23,7 @@ def _generate_data(
     secondary_datetime: np.datetime64 = np.datetime64("2022-12-13T00:00:00.000000000"),
 ) -> tuple[xr.Dataset, xr.Dataset]:
     """Generates xarray datasets with x, y, time (secondary_datetime) dims,
-    and two datavariable groups (unwrapped_phase & displacement)"""
+    and datavariable short_wavelength_displacement"""
     arr = np.random.randn(1, x_dim, y_dim)
 
     dims = ["time", "x", "y"]
@@ -34,8 +34,9 @@ def _generate_data(
     }
 
     data_vars = {}
-    for var in ["unwrapped_phase", "displacement"]:
-        data_vars[var] = xr.DataArray(data=arr, dims=dims, coords=coords)
+    data_vars["short_wavelength_displacement"] = xr.DataArray(
+        data=arr, dims=dims, coords=coords
+    )
 
     dataset = xr.Dataset(data_vars=data_vars)
 
@@ -141,7 +142,7 @@ def test_kerchunk_file_workflow(_mock_s3fs_ls, _mock_s3fs_open):
 
     mzz_steps = []
     for file in uris:
-        with gzip.open(file, 'rb') as new_f:
+        with gzip.open(file, "rb") as new_f:
             mzz_steps.append(json.loads(new_f.read().decode()))
 
     with gzip.open(zarr_stack_store, "wb") as f:
@@ -154,21 +155,24 @@ def test_kerchunk_file_workflow(_mock_s3fs_ls, _mock_s3fs_open):
         # One line required to specify compression here
         target_options={"compression": "gzip"},
     )
-    stack_data = xr.open_zarr(fs.get_mapper(''), consolidated=False)
+    stack_data = xr.open_zarr(fs.get_mapper(""), consolidated=False)
     assert "source_file_name" in stack_data.coords
     assert "x" in stack_data.coords
     assert "y" in stack_data.coords
     assert "time" not in stack_data.coords
     for file in files:
         fs = fsspec.filesystem(
-        "reference",
-        fo=f'{file}.zarr.gz',
-        # One line required to specify compression here
-        target_options={"compression": "gzip"},
+            "reference",
+            fo=f"{file}.zarr.gz",
+            # One line required to specify compression here
+            target_options={"compression": "gzip"},
         )
         assert file in stack_data["netcdf_uri"]
         assert file.split("/")[-1] in stack_data["source_file_name"]
-        timestep_dataset = xr.open_zarr(fs.get_mapper(''), consolidated=False,)
+        timestep_dataset = xr.open_zarr(
+            fs.get_mapper(""),
+            consolidated=False,
+        )
 
         # ensure selectable by filename as expected
         timestep_in_stack = stack_data.sel(
@@ -178,15 +182,15 @@ def test_kerchunk_file_workflow(_mock_s3fs_ls, _mock_s3fs_open):
         # we use slightly different coordinates in the single timestep and stack
         # (time in the single timestep vs source_file_name in the stack)
 
-        for key in [
-            "displacement",
-            "unwrapped_phase",
-        ]:
-            assert (
-                timestep_dataset[key]
-                .drop_vars("time")
-                .equals(timestep_in_stack[key].drop_vars("source_file_name"))
+        assert (
+            timestep_dataset["short_wavelength_displacement"]
+            .drop_vars("time")
+            .equals(
+                timestep_in_stack["short_wavelength_displacement"].drop_vars(
+                    "source_file_name"
+                )
             )
+        )
 
         # additional variables added during processing lack source file's 'time' coordinate
         for key in [
