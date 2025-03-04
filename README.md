@@ -74,18 +74,23 @@ stack_data = generate_kerchunk_file_store_stack(
 ```
 
 ### Advanced
-In the consolidation step, if the individual zarr references are in a compressed format (say `gzip`)
-`MultiZarrToZarr` may have trouble reading these files because the class expects uncompressed json.
-You may need to decompress the gzip files beforehand and then pass the loaded dictionaries directly
-to `generate_kerchunk_file_store_stack()` to pass along to `MultiZarrToZarr`.
-
-`filter_unused_references()` can be used on the loaded dictionaries (or any other preprocessing) 
-to remove unwanted keys from the zarr store refs before they're even passed to kerchunk's `MultiZarrToZarr`.
-
 ``` python
+from asf_kerchunk_timeseries import keep_latest_products, filter_unused_references, generate_kerchunk_file_store_stack
+
+# `keep_latest_products()` filters zarr uris by dropping duplicates that share a file uri prefix and by a minimum version number
+latest_zarr_uris = keep_latest_products(uris, min_version=1.0)
+
+# In the consolidation step, if the individual zarr references are in a compressed format (say `gzip`)
+# `MultiZarrToZarr` may have trouble reading these files because the class expects uncompressed json.
+# You may need to decompress the gzip files beforehand and then pass the loaded dictionaries directly
+# to `generate_kerchunk_file_store_stack()` to pass along to `MultiZarrToZarr`.
+
+# `filter_unused_references()` can be used on the loaded dictionaries (or any other preprocessing) 
+# to remove unwanted keys from the zarr store refs before they're even passed to kerchunk's `MultiZarrToZarr`.
+
 # Load uncompressed zarr stores into list of dicts
  mzz_steps = []
- for file in uris:
+ for file in latest_zarr_uris:
     with fsspec.open(file, compression='gzip', **fsspec_opts) as f: # fsspec
         zarr_store = json.loads(f.read().decode())
         filter_unused_references(zarr_store) # filters out unneeded refs based on pre-defined whitelist+blacklist
