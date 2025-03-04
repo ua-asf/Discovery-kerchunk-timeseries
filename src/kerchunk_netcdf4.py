@@ -6,6 +6,10 @@ from kerchunk.combine import MultiZarrToZarr
 from aiobotocore.session import AioSession
 from s3fs import S3FileSystem
 import h5py
+import re
+import urllib
+import numpy as np
+from os.path import basename
 
 # only fields with these prefixes will be kept
 # improves stack time and memory read time
@@ -175,6 +179,32 @@ def generate_kerchunk_file_store_stack(
 
     return zarr_chunks.translate()
 
+def keep_latest_products(uris: list[str], min_version: float=0.9) -> list[str]:
+    """Filters zarr product uris by:
+    - file name prefix, keeping the product uri with the highest version number
+    - minimum version (default min is v0.9)
+
+    Parameters
+    ----------
+    uris: list[str] (required)
+        Zarr timestep s3 URIs to filter
+    min_version: float (required)
+        Minimum version number to keep
+    """
+    prefixes = {}
+    for file in uris:
+        source_file_prefix = basename(file).split('_v')[0]
+        product_version = _get_store_version(file)
+        if product_version >= min_version:
+            if prefixes.get(source_file_prefix) is None:
+                prefixes[source_file_prefix] = file
+            elif product_version > _get_store_version(prefixes[source_file_prefix]):
+                prefixes[source_file_prefix] = file
+    
+    return list(prefixes.values())
+
+def _get_store_version(file: str) -> float:
+    return float(re.search(r'(?:v)(\d\.\d)', file)[1])
 
 def filter_unused_references(data: dict) -> None:
     """
