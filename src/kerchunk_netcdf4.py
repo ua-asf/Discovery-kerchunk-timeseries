@@ -26,7 +26,6 @@ _fields_whitelist = [
     "reference_datetime",
     "secondary_datetime",
     "short_wavelength_displacement",
-    "recommended_mask",
     "source_file_name",
     "spatial_ref",
     "x",
