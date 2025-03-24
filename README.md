@@ -78,7 +78,7 @@ stack_data = generate_kerchunk_file_store_stack(
 from asf_kerchunk_timeseries import keep_latest_products, filter_unused_references, generate_kerchunk_file_store_stack
 
 # `keep_latest_products()` filters zarr uris by dropping duplicates that share a file uri prefix and by a minimum version number
-latest_zarr_uris = keep_latest_products(uris, min_version=1.0)
+latest_zarr_uris = keep_latest_products(uris, min_version=0.9)
 
 # In the consolidation step, if the individual zarr references are in a compressed format (say `gzip`)
 # `MultiZarrToZarr` may have trouble reading these files because the class expects uncompressed json.
